@@ -114,3 +114,12 @@ PostgreSQL is exposed only on `127.0.0.1:55432` for local Python. Configure
 container explicitly uses `db:5432` instead. Start the database before running
 tests (`docker compose up -d db`). Django creates a separate `test_dumbach`
 database for tests; the development database is preserved.
+
+## Announcement authors
+
+Every announcement has a required author referencing AUTH_USER_MODEL. The API and
+Django admin assign the creator automatically; client-supplied authors are ignored.
+The author is read-only in admin. Users referenced by announcements cannot be deleted
+(PROTECT); deactivate their accounts instead. Public API responses do not expose authors.
+The author migration attributes existing announcements to the maintainer-selected
+`admin` account, and fresh databases with no announcements need no backfill account.

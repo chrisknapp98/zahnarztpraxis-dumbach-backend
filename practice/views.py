@@ -66,7 +66,7 @@ def announcements(request):
         with transaction.atomic():
             # Make room at the front without losing the current manual ordering.
             Announcement.objects.update(position=F("position") + 1)
-            Announcement.objects.create(message=message, position=0)
+            Announcement.objects.create(message=message, position=0, author=request.user)
             return announcement_list(status=201)
 
     ordered_ids = data.get("orderedIds")

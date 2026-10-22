@@ -14,7 +14,7 @@ class AnnouncementAPITests(TestCase):
         self.admin = get_user_model().objects.create_superuser(username="test-admin", password="test-password")
 
     def test_public_list_preserves_contract_and_issues_csrf_cookie(self):
-        item = Announcement.objects.create(message="News")
+        item = Announcement.objects.create(author=self.admin, message="News")
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [{"id": str(item.id), "message": "News", "date": item.created_at.isoformat()}])
@@ -22,7 +22,7 @@ class AnnouncementAPITests(TestCase):
         self.assertIn("no-store", response.headers["Cache-Control"])
 
     def test_writes_require_login_and_staff_permission(self):
-        item = Announcement.objects.create(message="News")
+        item = Announcement.objects.create(author=self.admin, message="News")
         cases = [("post", self.url, {"message": "New"}), ("put", self.url, {"orderedIds": []}), ("delete", f"{self.url}?id={item.id}", {})]
         for method, url, payload in cases:
             self.assertEqual(getattr(self.client, method)(url, payload, content_type="application/json").status_code, 401)
@@ -37,7 +37,7 @@ class AnnouncementAPITests(TestCase):
         self.assertEqual(self.client.put(self.url, {"orderedIds": []}, content_type="application/json").status_code, 403)
 
     def test_create_prepends_to_manually_ordered_list(self):
-        old = Announcement.objects.create(message="Old", position=4)
+        old = Announcement.objects.create(author=self.admin, message="Old", position=4)
         self.client.force_login(self.admin)
         response = self.client.post(self.url, {"message": "New\nhttps://example.com"}, content_type="application/json")
         self.assertEqual(response.status_code, 201)
@@ -52,9 +52,9 @@ class AnnouncementAPITests(TestCase):
         self.assertEqual(Announcement.objects.count(), 0)
 
     def test_partial_reorder_appends_omitted_items(self):
-        first = Announcement.objects.create(message="First", position=0)
-        second = Announcement.objects.create(message="Second", position=1)
-        third = Announcement.objects.create(message="Third", position=2)
+        first = Announcement.objects.create(author=self.admin, message="First", position=0)
+        second = Announcement.objects.create(author=self.admin, message="Second", position=1)
+        third = Announcement.objects.create(author=self.admin, message="Third", position=2)
         self.client.force_login(self.admin)
         response = self.client.put(self.url, {"orderedIds": [str(third.id)]}, content_type="application/json")
         self.assertEqual(response.status_code, 200)
@@ -62,7 +62,7 @@ class AnnouncementAPITests(TestCase):
         self.assertEqual(list(Announcement.objects.values_list("position", flat=True)), [0, 1, 2])
 
     def test_invalid_reorder_is_atomic(self):
-        item = Announcement.objects.create(message="News", position=7)
+        item = Announcement.objects.create(author=self.admin, message="News", position=7)
         self.client.force_login(self.admin)
         for ids in [None, [str(item.id), str(item.id)], [str(uuid.uuid4())], ["invalid"], [42]]:
             response = self.client.put(self.url, {"orderedIds": ids}, content_type="application/json")
@@ -71,7 +71,7 @@ class AnnouncementAPITests(TestCase):
             self.assertEqual(item.position, 7)
 
     def test_delete_and_missing_ids(self):
-        item = Announcement.objects.create(message="News")
+        item = Announcement.objects.create(author=self.admin, message="News")
         self.client.force_login(self.admin)
         self.assertEqual(self.client.delete(self.url).status_code, 400)
         self.assertEqual(self.client.delete(f"{self.url}?id=invalid").status_code, 400)
@@ -90,3 +90,12 @@ class AnnouncementAPITests(TestCase):
 
     def test_unsupported_method(self):
         self.assertEqual(self.client.patch(self.url).status_code, 405)
+
+    def test_create_uses_authenticated_author_and_ignores_supplied_author(self):
+        other = get_user_model().objects.create_user(username="other")
+        self.client.force_login(self.admin)
+        response = self.client.post(self.url, {"message": "Authored news", "author": other.pk}, content_type="application/json")
+        self.assertEqual(response.status_code, 201)
+        item = Announcement.objects.get(id=response.json()[0]["id"])
+        self.assertEqual(item.author, self.admin)
+        self.assertNotIn("author", response.json()[0])
