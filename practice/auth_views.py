@@ -1,6 +1,8 @@
 import json
 
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
+from django.utils.translation import override
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.views.decorators.cache import never_cache
@@ -13,7 +15,11 @@ from .access import can_access_practice
 @require_GET
 def session_status(request):
     valid = can_access_practice(request.user)
-    return JsonResponse({"valid": bool(valid), "csrfToken": get_token(request)}, status=200 if valid else 401)
+    return JsonResponse({
+        "valid": bool(valid),
+        "csrfToken": get_token(request),
+        "username": request.user.get_username() if valid else None,
+    }, status=200 if valid else 401)
 
 
 @never_cache
@@ -41,4 +47,31 @@ def session_login(request):
 @require_POST
 def session_logout(request):
     logout(request)
+    return JsonResponse({"success": True})
+
+
+@never_cache
+@require_POST
+def change_password(request):
+    if not can_access_practice(request.user):
+        return JsonResponse({"error": "Bitte erneut anmelden."}, status=401)
+    if request.content_type != "application/json":
+        return JsonResponse({"error": "JSON erforderlich."}, status=415)
+    try:
+        data = json.loads(request.body)
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"error": "Ungültige Anfrage."}, status=400)
+    fields = ("old_password", "new_password1", "new_password2")
+    if not isinstance(data, dict) or any(
+        not isinstance(data.get(field), str) or not data[field] or len(data[field]) > 1024
+        for field in fields
+    ):
+        return JsonResponse({"error": "Bitte alle Passwortfelder ausfüllen (maximal 1024 Zeichen)."}, status=400)
+    with override("de"):
+        form = PasswordChangeForm(request.user, data)
+        if not form.is_valid():
+            return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
+        user = form.save()
+    # Preserve this session; other sessions fail Django's password-hash check.
+    update_session_auth_hash(request, user)
     return JsonResponse({"success": True})

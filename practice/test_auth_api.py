@@ -77,3 +77,11 @@ class SessionAPITests(TestCase):
         editor.groups.add(Group.objects.get(name="Practice editors"))
         response = self.client.post("/api/auth", {"username": "disabled", "password": "editor-password"}, content_type="application/json", HTTP_X_CSRFTOKEN=self.token())
         self.assertEqual(response.status_code, 401)
+
+    def test_session_exposes_username_only_to_authorized_user(self):
+        self.assertIsNone(self.client.get("/api/auth/validate").json()["username"])
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get("/api/auth/validate").json()["username"], "test-admin")
+        reader = get_user_model().objects.create_user(username="reader")
+        self.client.force_login(reader)
+        self.assertIsNone(self.client.get("/api/auth/validate").json()["username"])
