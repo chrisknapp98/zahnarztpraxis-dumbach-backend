@@ -48,3 +48,47 @@ breaks and links. The existing frontend API has not yet been connected.
 ```sh
 docker compose run --rm web python manage.py test practice
 ```
+
+## Announcement API
+
+`/api/announcements` (also accepts a trailing slash):
+
+| Method | Input | Result |
+| --- | --- | --- |
+| GET | None | Public ordered list |
+| POST | JSON `{"message":"News"}` | Create at front; 201 and updated list |
+| DELETE | Query `?id=<uuid>` | Delete; updated list |
+| PUT | JSON `{"orderedIds":["<uuid>"]}` | Reorder; omitted items follow in their existing order |
+
+List items retain the frontend contract: `id`, `message`, `date` (ISO 8601).
+Writes require an active practice-editor Django session and the corresponding add/delete/change
+announcement permission. Superusers have these permissions automatically.
+Sign in at `/admin/` for now; dedicated JSON login/logout endpoints and frontend
+integration are not implemented yet. Existing Next.js authentication is separate.
+
+GET sets a `csrftoken` cookie. For writes, send that token in the `X-CSRFToken`
+header along with the session cookie. POST and PUT require `application/json`.
+CSRF failures use Django's standard 403 response; other API errors return JSON.
+Invalid or duplicate reorder IDs return 400 without changing the order.
+
+## Frontend sessions
+
+The Next.js frontend proxies `/api/announcements` and `/api/auth*` to Django.
+GET `/api/auth/validate` returns `valid` and a masked `csrfToken`, also for anonymous
+requests (401). POST `/api/auth` accepts JSON `username` and `password`, establishes
+a practice-editor session, and returns a rotated CSRF token. POST `/api/auth/logout` invalidates
+the session. Login, logout, and all announcement writes require CSRF protection.
+For production, set `DJANGO_CSRF_TRUSTED_ORIGINS` to the public HTTPS frontend origin
+(comma-separated if multiple), disable DEBUG, and configure ALLOWED_HOSTS.
+
+## Editor accounts and Django admin
+
+The `Practice editors` group grants frontend access and view/add/change/delete
+announcement permissions. Assign daily users to this group and leave Staff status
+and Superuser status unchecked. Staff status controls Django admin access only;
+it does not grant frontend access. Active superusers may use both interfaces.
+Model permissions are checked for each write, and removing group membership
+immediately blocks subsequent frontend session checks and writes.
+
+Create and manage these accounts through Django admin as the technical maintainer.
+The migration creates the group automatically; it does not enroll users.
