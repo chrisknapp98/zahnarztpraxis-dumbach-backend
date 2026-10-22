@@ -92,3 +92,25 @@ immediately blocks subsequent frontend session checks and writes.
 
 Create and manage these accounts through Django admin as the technical maintainer.
 The migration creates the group automatically; it does not enroll users.
+
+## Password changes
+
+POST `/api/auth/password` accepts `old_password`, `new_password1`, and
+`new_password2` as JSON, with a session and CSRF token. Practice editors can only
+change their own password. Django's PasswordChangeForm validates the current
+password, confirmation, and configured strength rules. Success preserves the
+current session; other sessions are rejected on their next authenticated request.
+
+## Local VS Code tests
+
+The local `.venv` can discover and run Django tests using the workspace Python
+settings and `MANAGE_PY_PATH=./manage.py` in `.env`. Keep
+`python.testing.unittestArgs` empty; do not use unittest's `-s`/`-p` options with
+Django's runner. Reload the VS Code window after changing these settings.
+
+PostgreSQL is exposed only on `127.0.0.1:55432` for local Python. Configure
+`POSTGRES_DB=dumbach`, `POSTGRES_USER=dumbach`, `POSTGRES_HOST=127.0.0.1`, and
+`POSTGRES_PORT=55432` in `.env`. The password is shared with Docker; the web
+container explicitly uses `db:5432` instead. Start the database before running
+tests (`docker compose up -d db`). Django creates a separate `test_dumbach`
+database for tests; the development database is preserved.

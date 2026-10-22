@@ -13,11 +13,14 @@ services:
       POSTGRES_USER: dumbach
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
     depends_on:
       db:
         condition: service_healthy
   db:
     image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:55432:5432"
     environment:
       POSTGRES_DB: dumbach
       POSTGRES_USER: dumbach
