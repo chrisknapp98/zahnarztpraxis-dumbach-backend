@@ -78,7 +78,7 @@ GET `/api/auth/validate` returns `valid` and a masked `csrfToken`, also for anon
 requests (401). POST `/api/auth` accepts JSON `username` and `password`, establishes
 a practice-editor session, and returns a rotated CSRF token. POST `/api/auth/logout` invalidates
 the session. Login, logout, and all announcement writes require CSRF protection.
-For production, set `DJANGO_CSRF_TRUSTED_ORIGINS` to the public HTTPS frontend origin
+For production, set `CSRF_TRUSTED_ORIGINS` to the public HTTPS frontend origin
 (comma-separated if multiple), disable DEBUG, and configure ALLOWED_HOSTS.
 
 ## Editor accounts and Django admin
